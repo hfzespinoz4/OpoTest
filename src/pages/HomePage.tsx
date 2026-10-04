@@ -15,16 +15,16 @@ export default function HomePage() {
             Domina las 14 escalas del cuestionario de personalidad
           </h1>
           <p className="mt-4 max-w-2xl text-brand-100 text-base sm:text-lg">
-            Aprende qué mide cada escala, con ejemplos reales de ítems, y practica con simulacros de
-            preguntas de escenario (fácil, intermedio, difícil) con corrección detallada al estilo de un
-            examen de certificación.
+            Aprende qué mide cada escala y después ponte a prueba de verdad: te presentamos una situación
+            real, sin decirte de qué escala se trata, y tienes que adivinarlo tú — igual que tendrás que
+            hacerlo el día del examen.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               to="/practicar"
               className="rounded-xl bg-accent-500 px-5 py-3 font-semibold text-brand-950 shadow-sm hover:bg-accent-400 transition-colors"
             >
-              Empezar a practicar
+              Adivinar la escala
             </Link>
             <Link
               to="/escalas"
@@ -67,13 +67,13 @@ export default function HomePage() {
           />
           <HowStep
             n={2}
-            title="Practica con casos reales"
-            text="Preguntas de escenario tipo test, de una sola respuesta, clasificadas en fácil, intermedio y difícil."
+            title="Adivina la escala"
+            text="Te mostramos una situación real, sin decirte a qué escala pertenece. Tú eliges entre las 14, como en el examen."
           />
           <HowStep
             n={3}
             title="Corrige y entiende el porqué"
-            text="Al terminar cada test verás tu respuesta frente a la correcta, con una explicación de cada opción, como en un examen de certificación."
+            text="Al terminar verás la escala correcta frente a la tuya, por qué lo es y, además, cuál habría sido la mejor actitud dentro de ella."
           />
         </div>
       </section>

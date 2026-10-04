@@ -1,41 +1,27 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
 import { scales } from '../data/scales'
-import { questions } from '../data/questions'
-import type { Difficulty, Question } from '../data/types'
+import type { Difficulty, Question, ScaleId } from '../data/types'
+import { classificationPool } from '../lib/classify'
 import { getColor, difficultyLabels, difficultyClasses } from '../lib/colors'
 import { shuffle } from '../lib/shuffle'
 
 type Phase = 'setup' | 'quiz' | 'results'
-type ScaleFilter = 'todas' | (typeof scales)[number]['id']
 type DifficultyFilter = 'todas' | Difficulty
 
 const COUNT_OPTIONS = [5, 10, 15, 20, 30]
 
 export default function PracticePage() {
-  const [searchParams] = useSearchParams()
-  const preScale = searchParams.get('escala') as ScaleFilter | null
-
   const [phase, setPhase] = useState<Phase>('setup')
-  const [scaleFilter, setScaleFilter] = useState<ScaleFilter>(preScale ?? 'todas')
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('todas')
   const [count, setCount] = useState<number>(10)
 
   const [pool, setPool] = useState<Question[]>([])
   const [index, setIndex] = useState(0)
-  const [answers, setAnswers] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    if (preScale) setScaleFilter(preScale)
-  }, [preScale])
+  const [answers, setAnswers] = useState<Record<string, ScaleId>>({})
 
   const available = useMemo(() => {
-    return questions.filter(
-      (q) =>
-        (scaleFilter === 'todas' || q.scaleId === scaleFilter) &&
-        (difficultyFilter === 'todas' || q.difficulty === difficultyFilter),
-    )
-  }, [scaleFilter, difficultyFilter])
+    return classificationPool.filter((q) => difficultyFilter === 'todas' || q.difficulty === difficultyFilter)
+  }, [difficultyFilter])
 
   function startQuiz() {
     const n = Math.min(count, available.length)
@@ -47,9 +33,9 @@ export default function PracticePage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  function selectAnswer(optionId: string) {
+  function selectAnswer(scaleId: ScaleId) {
     const q = pool[index]
-    setAnswers((prev) => ({ ...prev, [q.id]: optionId }))
+    setAnswers((prev) => ({ ...prev, [q.id]: scaleId }))
   }
 
   function finishQuiz() {
@@ -69,8 +55,6 @@ export default function PracticePage() {
   if (phase === 'setup') {
     return (
       <SetupView
-        scaleFilter={scaleFilter}
-        setScaleFilter={setScaleFilter}
         difficultyFilter={difficultyFilter}
         setDifficultyFilter={setDifficultyFilter}
         count={count}
@@ -103,8 +87,6 @@ export default function PracticePage() {
 // ---------------------------------------------------------------------------
 
 function SetupView(props: {
-  scaleFilter: ScaleFilter
-  setScaleFilter: (v: ScaleFilter) => void
   difficultyFilter: DifficultyFilter
   setDifficultyFilter: (v: DifficultyFilter) => void
   count: number
@@ -112,36 +94,19 @@ function SetupView(props: {
   available: number
   onStart: () => void
 }) {
-  const { scaleFilter, setScaleFilter, difficultyFilter, setDifficultyFilter, count, setCount, available, onStart } =
-    props
+  const { difficultyFilter, setDifficultyFilter, count, setCount, available, onStart } = props
 
   return (
     <div className="mx-auto max-w-2xl px-4 sm:px-6 py-12">
-      <h1 className="text-3xl font-extrabold text-slate-900">Configura tu simulacro</h1>
+      <h1 className="text-3xl font-extrabold text-slate-900">Adivina la escala</h1>
       <p className="mt-2 text-slate-600">
-        Elige una escala concreta o practica con todas mezcladas, el nivel de dificultad y el número de
-        preguntas.
+        No eliges la escala de antemano: te mostramos una situación real y tú decides a cuál de las 14
+        escalas de personalidad pertenece. Elige el nivel de complejidad y el número de preguntas.
       </p>
 
       <div className="mt-8 space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
-          <label className="block text-sm font-semibold text-slate-800 mb-2">Escala</label>
-          <select
-            value={scaleFilter}
-            onChange={(e) => setScaleFilter(e.target.value as ScaleFilter)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-slate-900 focus:border-brand-500 focus:ring-2 focus:ring-brand-200 outline-none"
-          >
-            <option value="todas">Todas las escalas (simulacro general)</option>
-            {scales.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-slate-800 mb-2">Dificultad</label>
+          <label className="block text-sm font-semibold text-slate-800 mb-2">Nivel de complejidad</label>
           <div className="flex gap-2 flex-wrap">
             {(['todas', 'facil', 'intermedio', 'dificil'] as const).map((d) => (
               <button
@@ -207,16 +172,18 @@ function QuizView(props: {
   index: number
   setIndex: (i: number) => void
   question: Question
-  selected: string | undefined
-  onSelect: (optionId: string) => void
+  selected: ScaleId | undefined
+  onSelect: (scaleId: ScaleId) => void
   onFinish: () => void
   answeredCount: number
 }) {
   const { pool, index, setIndex, question, selected, onSelect, onFinish, answeredCount } = props
-  const scale = scales.find((s) => s.id === question.scaleId)!
-  const c = getColor(scale.color)
   const isLast = index === pool.length - 1
   const progress = ((index + 1) / pool.length) * 100
+
+  // Stable per-question shuffle of the 14 scale options, so the order doesn't
+  // telegraph anything and doesn't reshuffle on every re-render.
+  const scaleOptions = useMemo(() => shuffle(scales), [question.id])
 
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
@@ -231,7 +198,6 @@ function QuizView(props: {
       </div>
 
       <div className="mt-6 flex items-center gap-2 flex-wrap">
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.chip}`}>{scale.name}</span>
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${difficultyClasses[question.difficulty]}`}>
           {difficultyLabels[question.difficulty]}
         </span>
@@ -239,30 +205,28 @@ function QuizView(props: {
 
       <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-slate-600 italic leading-relaxed">{question.scenario}</p>
-        <p className="mt-4 font-bold text-slate-900 text-lg leading-snug">{question.prompt}</p>
+        <p className="mt-4 font-bold text-slate-900 text-lg leading-snug">
+          ¿A qué escala de personalidad pertenece mejor esta situación?
+        </p>
 
-        <div className="mt-5 space-y-3">
-          {question.options.map((opt) => {
-            const isSelected = selected === opt.id
+        <div className="mt-5 grid sm:grid-cols-2 gap-2.5">
+          {scaleOptions.map((s) => {
+            const isSelected = selected === s.id
+            const c = getColor(s.color)
             return (
               <button
-                key={opt.id}
+                key={s.id}
                 type="button"
-                onClick={() => onSelect(opt.id)}
-                className={`w-full text-left rounded-xl border px-4 py-3 flex gap-3 transition-colors ${
+                onClick={() => onSelect(s.id)}
+                className={`text-left rounded-xl border px-4 py-3 transition-colors ${
                   isSelected
-                    ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-200'
+                    ? `border-brand-500 ring-2 ring-brand-200 ${c.softBg}`
                     : 'border-slate-200 hover:border-brand-300 hover:bg-slate-50'
                 }`}
               >
-                <span
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                    isSelected ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-600'
-                  }`}
-                >
-                  {opt.id.toUpperCase()}
+                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${c.chip}`}>
+                  {s.name}
                 </span>
-                <span className="text-slate-800">{opt.text}</span>
               </button>
             )
           })}
@@ -305,13 +269,13 @@ function QuizView(props: {
 
 function ResultsView(props: {
   pool: Question[]
-  answers: Record<string, string>
+  answers: Record<string, ScaleId>
   onRetry: () => void
   onNewConfig: () => void
 }) {
   const { pool, answers, onRetry, onNewConfig } = props
 
-  const correctCount = pool.filter((q) => answers[q.id] === q.correctOptionId).length
+  const correctCount = pool.filter((q) => answers[q.id] === q.scaleId).length
   const total = pool.length
   const pct = total > 0 ? Math.round((correctCount / total) * 100) : 0
 
@@ -323,7 +287,7 @@ function ResultsView(props: {
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Resultado</p>
         <p className={`mt-2 text-5xl font-extrabold ${scoreColor}`}>{pct}%</p>
         <p className="mt-2 text-slate-600">
-          {correctCount} de {total} respuestas correctas
+          {correctCount} de {total} escalas acertadas
         </p>
         <div className="mt-6 flex justify-center gap-3 flex-wrap">
           <button
@@ -377,11 +341,14 @@ function QuestionReview({
 }: {
   question: Question
   index: number
-  selected: string | undefined
+  selected: ScaleId | undefined
 }) {
-  const scale = scales.find((s) => s.id === question.scaleId)!
-  const c = getColor(scale.color)
-  const isCorrect = selected === question.correctOptionId
+  const correctScale = scales.find((s) => s.id === question.scaleId)!
+  const selectedScale = selected ? scales.find((s) => s.id === selected) : undefined
+  const cCorrect = getColor(correctScale.color)
+  const isCorrect = selected === question.scaleId
+
+  const correctOption = question.options.find((o) => o.id === question.correctOptionId)!
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -393,7 +360,6 @@ function QuestionReview({
         >
           {isCorrect ? 'Correcta' : selected ? 'Incorrecta' : 'Sin responder'}
         </span>
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${c.chip}`}>{scale.name}</span>
         <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${difficultyClasses[question.difficulty]}`}>
           {difficultyLabels[question.difficulty]}
         </span>
@@ -401,46 +367,41 @@ function QuestionReview({
 
       <p className="mt-3 text-sm text-slate-600 italic">{question.scenario}</p>
       <p className="mt-2 font-bold text-slate-900">
-        {index + 1}. {question.prompt}
+        {index + 1}. ¿A qué escala de personalidad pertenece mejor esta situación?
       </p>
 
       <div className="mt-4 space-y-2.5">
-        {question.options.map((opt) => {
-          const isTheCorrectOne = opt.id === question.correctOptionId
-          const isTheSelectedOne = opt.id === selected
+        {!isCorrect && selectedScale && (
+          <div className="rounded-xl border border-red-400 bg-red-50 px-4 py-3">
+            <p className="font-medium text-slate-900 flex items-center gap-2 flex-wrap">
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getColor(selectedScale.color).chip}`}>
+                {selectedScale.name}
+              </span>
+              <span className="text-red-600 text-xs font-bold">✗ Tu respuesta</span>
+            </p>
+          </div>
+        )}
+        <div className="rounded-xl border border-emerald-400 bg-emerald-50 px-4 py-3">
+          <p className="font-medium text-slate-900 flex items-center gap-2 flex-wrap">
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cCorrect.chip}`}>
+              {correctScale.name}
+            </span>
+            <span className="text-emerald-700 text-xs font-bold">✓ Escala correcta</span>
+          </p>
+          <p className="mt-1 text-sm text-slate-600">{correctScale.summary}</p>
+        </div>
+      </div>
 
-          let style = 'border-slate-200 bg-white'
-          if (isTheCorrectOne) style = 'border-emerald-400 bg-emerald-50'
-          else if (isTheSelectedOne && !isCorrect) style = 'border-red-400 bg-red-50'
-
-          return (
-            <div key={opt.id} className={`rounded-xl border px-4 py-3 ${style}`}>
-              <div className="flex items-start gap-2">
-                <span
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                    isTheCorrectOne
-                      ? 'bg-emerald-600 text-white'
-                      : isTheSelectedOne
-                        ? 'bg-red-500 text-white'
-                        : 'bg-slate-200 text-slate-600'
-                  }`}
-                >
-                  {opt.id.toUpperCase()}
-                </span>
-                <div className="flex-1">
-                  <p className="font-medium text-slate-900 flex items-center gap-2 flex-wrap">
-                    {opt.text}
-                    {isTheCorrectOne && <span className="text-emerald-700 text-xs font-bold">✓ Respuesta correcta</span>}
-                    {isTheSelectedOne && !isTheCorrectOne && (
-                      <span className="text-red-600 text-xs font-bold">✗ Tu respuesta</span>
-                    )}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">{opt.explanation}</p>
-                </div>
-              </div>
-            </div>
-          )
-        })}
+      <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Profundiza: dentro de esta escala
+        </p>
+        <p className="mt-1.5 text-sm font-semibold text-slate-800">{question.prompt}</p>
+        <p className="mt-1 text-sm text-slate-700">
+          <span className="font-semibold text-emerald-700">Mejor actitud: </span>
+          {correctOption.text}
+        </p>
+        <p className="mt-1 text-sm text-slate-600">{correctOption.explanation}</p>
       </div>
     </div>
   )
