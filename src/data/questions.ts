@@ -2457,7 +2457,3 @@ export const questions: Question[] = [
 export function getQuestionsByScale(scaleId: string) {
   return questions.filter((q) => q.scaleId === scaleId)
 }
-
-export function getQuestionsByScaleAndDifficulty(scaleId: string, difficulty: string) {
-  return questions.filter((q) => q.scaleId === scaleId && q.difficulty === difficulty)
-}

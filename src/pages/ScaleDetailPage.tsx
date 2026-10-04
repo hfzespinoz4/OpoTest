@@ -25,7 +25,7 @@ export default function ScaleDetailPage() {
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.chip}`}>
           Escala de personalidad
         </span>
-        <span className="text-xs text-slate-400">{total} preguntas de práctica disponibles</span>
+        <span className="text-xs text-slate-400">{total} situaciones de ejemplo usan esta escala</span>
       </div>
 
       <h1 className="mt-3 text-3xl sm:text-4xl font-extrabold text-slate-900">{scale.name}</h1>
@@ -33,12 +33,16 @@ export default function ScaleDetailPage() {
 
       <div className="mt-6 flex flex-wrap gap-3">
         <Link
-          to={`/practicar?escala=${scale.id}`}
+          to="/practicar"
           className={`rounded-xl px-5 py-3 font-semibold text-white shadow-sm ${c.solid} hover:opacity-90 transition-opacity`}
         >
-          Practicar esta escala
+          Practicar a identificarla entre las 14
         </Link>
       </div>
+      <p className="mt-2 text-xs text-slate-500">
+        En el simulacro no eliges la escala: se te presentan situaciones y tienes que adivinar a cuál
+        pertenecen, igual que en el examen real.
+      </p>
 
       <section className="mt-10 space-y-4 prose-scale">
         <h2 className="text-xl font-bold text-slate-900">¿Qué mide esta escala?</h2>
